@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Data & artifacts
+*.pt
+*.pth
+*.pgn
+*.pgn.zst
+*.loss
+*.count
+models/*.json
+batches/
+
+# Logs / OS
+*.log
+.DS_Store
+.python-version
