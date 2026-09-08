@@ -1,11 +1,17 @@
+import argparse
+import sys
+
 import chess.pgn
-from torch import sys
 
 from constants import DATA_WRITE_PATH
 
+parser = argparse.ArgumentParser(description="Preview a filtered game by index.")
+parser.add_argument("index", type=int, help="0-based game index to preview")
+args = parser.parse_args()
+
 green = "\033[92m"
 
-game_index = int(input("Enter game index: ")) + 1
+game_index = args.index + 1
 with open(DATA_WRITE_PATH, "r") as src:
     game = None
     for _ in range(game_index):

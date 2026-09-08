@@ -146,8 +146,14 @@ class LoopedGPT(nn.Module):
         logits = self.lm_head(self.ln_f(x))  # (B, T, vocab_size)
         loss = None
         if targets is not None:
-            # logits (B * T, vocab_size), targets (B * T,)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            if targets.ndim == 1:
+                # Winner-move batches: ys is (B,), supervise the last step only.
+                loss = F.cross_entropy(logits[:, -1, :], targets)
+            else:
+                # Full-sequence LM: ys is (B, T)
+                loss = F.cross_entropy(
+                    logits.view(-1, logits.size(-1)), targets.view(-1)
+                )
         return logits, loss
 
     @torch.no_grad()

@@ -10,6 +10,7 @@ build/
 # Data & artifacts
 *.pt
 *.pth
+*.npy
 *.pgn
 *.pgn.zst
 *.loss

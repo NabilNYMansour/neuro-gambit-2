@@ -4,7 +4,7 @@ import sys
 import chess.pgn
 from tqdm import tqdm
 
-from constants import BATCH_SIZE, DATA_PATH, DATA_WRITE_PATH, MAX_GAMES, MIN_ELO
+from constants import DATA_PATH, DATA_WRITE_PATH, MAX_GAMES, MIN_ELO
 
 if os.path.exists(DATA_WRITE_PATH):
     answer = input(
