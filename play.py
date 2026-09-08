@@ -12,44 +12,18 @@ from torch.nn import functional as F
 
 from chess_helpers import (
     ITOM,
-    LEN_POSSIBLE_MOVES,
     MTOI,
     illegal_mask_from_board,
     legal_move_indices,
 )
-from constants import (
-    DROPOUT,
-    INPUT_SIZE,
-    MODEL_FILE_PATH,
-    N_EMBED,
-    N_HEADS,
-    N_LOOPS,
-)
-from model import LoopedGPT
+from constants import INPUT_SIZE
+from model import load_model
 
 SQ = 80
 LIGHT = (240, 217, 181)
 DARK = (181, 136, 99)
 SELECT = (186, 202, 68)
 ARROW = (80, 155, 70, 200)
-
-
-def load_model(device):
-    if not os.path.isfile(MODEL_FILE_PATH):
-        print(f"No trained model at {MODEL_FILE_PATH}. Run train.py first.")
-        raise SystemExit(1)
-    model = LoopedGPT(
-        vocab_size=LEN_POSSIBLE_MOVES,
-        n_token_embd=N_EMBED,
-        n_attn_embd=N_EMBED,
-        n_head=N_HEADS,
-        block_size=INPUT_SIZE,
-        dropout=DROPOUT,
-        loop_times=N_LOOPS,
-    ).to(device)
-    model.load_state_dict(torch.load(MODEL_FILE_PATH, map_location=device, weights_only=True))
-    model.eval()
-    return model
 
 
 def context_idx(board, device):
