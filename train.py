@@ -24,8 +24,6 @@ from model import LoopedGPT
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
-if getattr(torch.version, "hip", None):
-    print(f"HIP/ROCm version: {torch.version.hip}")
 
 torch.manual_seed(SEED)
 model = LoopedGPT(
