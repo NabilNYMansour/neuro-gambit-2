@@ -90,7 +90,7 @@ for step in range(ITERATIONS):
 
 os.makedirs(MODELS_FOLDER_PATH, exist_ok=True)
 torch.save(model.state_dict(), MODEL_FILE_PATH)
-print(f"Saved model to {MODEL_FILE_PATH}")
+print(f"\nSaved model to {MODEL_FILE_PATH}")
 
 if last_loss is not None:
     set_metadata(METADATA_FILE_PATH, "train_loss", last_loss)
