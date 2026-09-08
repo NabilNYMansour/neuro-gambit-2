@@ -15,7 +15,7 @@ from constants import BATCH_SIZE, DATA_WRITE_PATH, MAX_GAMES, SPLIT_NAMES
 ensure_batch_dirs()
 for split in SPLIT_NAMES:
     clear_split_batches(split)
-buffers = {split: ([], []) for split in SPLIT_NAMES}
+buffers = {split: ([], [], []) for split in SPLIT_NAMES}
 counts = {split: 0 for split in SPLIT_NAMES}
 
 print("Generating data...")
@@ -28,16 +28,17 @@ with open(DATA_WRITE_PATH, "r") as src:
             break
 
         split = split_name(game_idx)
-        xs, ys = buffers[split]
-        for x, y in iter_winner_examples(game):
+        xs, ys, legal_ids_batch = buffers[split]
+        for x, y, legal_ids in iter_winner_examples(game):
             xs.append(x)
             ys.append(y)
+            legal_ids_batch.append(legal_ids)
             if len(xs) == BATCH_SIZE:
-                save_batch(split, counts[split], xs, ys)
+                save_batch(split, counts[split], xs, ys, legal_ids_batch)
                 counts[split] += 1
-                xs, ys = [], []
+                xs, ys, legal_ids_batch = [], [], []
 
-        buffers[split] = (xs, ys)
+        buffers[split] = (xs, ys, legal_ids_batch)
         game_idx += 1
         progress.update(1)
 progress.close()

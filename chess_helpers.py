@@ -1,4 +1,5 @@
 import chess
+import torch
 
 POSSIBLE_MOVES = ['.']
 for from_sq in chess.SQUARES:
@@ -20,3 +21,20 @@ LEN_POSSIBLE_MOVES = len(POSSIBLE_MOVES)
 
 MTOI = {move: i for i, move in enumerate(POSSIBLE_MOVES)}
 ITOM = {i: move for move, i in MTOI.items()}
+
+
+def legal_move_indices(board):
+    ids = []
+    for move in board.legal_moves:
+        idx = MTOI.get(move.uci())
+        if idx is not None:
+            ids.append(idx)
+    return ids
+
+
+def illegal_mask_from_board(board, device=None):
+    mask = torch.ones(LEN_POSSIBLE_MOVES, dtype=torch.bool, device=device)
+    ids = legal_move_indices(board)
+    if ids:
+        mask[torch.as_tensor(ids, dtype=torch.long, device=device)] = False
+    return mask

@@ -2,7 +2,7 @@ import os
 
 import torch
 
-from chess_helpers import MTOI
+from chess_helpers import LEN_POSSIBLE_MOVES, MTOI, legal_move_indices
 from constants import (
     BATCHES_FOLDER_PATH,
     CONTEXT_SIZE,
@@ -39,19 +39,28 @@ def write_batch_count(split, count):
 
 
 def load_batch(split, batch_num):
-    return torch.load(get_batch_path(split, batch_num), weights_only=True)
+    data = torch.load(get_batch_path(split, batch_num), weights_only=True)
+    if not isinstance(data, (tuple, list)) or len(data) != 3:
+        print("Batches missing illegal-move masks. Re-run generate_batches.py.")
+        raise SystemExit(1)
+    return data
 
 
-def save_batch(split, batch_num, xs, ys):
+def save_batch(split, batch_num, xs, ys, legal_ids_batch):
     xs_t = torch.as_tensor(xs, dtype=torch.long)
     ys_t = torch.as_tensor(ys, dtype=torch.long)
-    torch.save((xs_t, ys_t), get_batch_path(split, batch_num))
+    mask_t = torch.ones((len(legal_ids_batch), LEN_POSSIBLE_MOVES), dtype=torch.bool)
+    for i, ids in enumerate(legal_ids_batch):
+        if ids:
+            mask_t[i, ids] = False
+    torch.save((xs_t, ys_t, mask_t), get_batch_path(split, batch_num))
 
 
-def batch_to_device(xs, ys, device):
+def batch_to_device(xs, ys, illegal_mask, device):
     xs = torch.as_tensor(xs, dtype=torch.long).to(device)
     ys = torch.as_tensor(ys, dtype=torch.long).to(device)
-    return xs, ys
+    illegal_mask = torch.as_tensor(illegal_mask, dtype=torch.bool).to(device)
+    return xs, ys, illegal_mask
 
 
 def ensure_batch_dirs():
@@ -94,11 +103,12 @@ def game_winner(game):
 
 
 def iter_winner_examples(game, context_size=CONTEXT_SIZE):
-    moves = ["."] * (context_size - 1) + [
-        move.uci() for move in game.mainline_moves()
-    ]
+    mainline = list(game.mainline_moves())
+    moves = ["."] * (context_size - 1) + [move.uci() for move in mainline]
     winner = game_winner(game)
-    for i, sub_moves in enumerate(zip(*[moves[j:] for j in range(context_size)])):
+    board = game.board()
+    for i, move in enumerate(mainline):
         if is_winner_ply(winner, i):
-            indices = [MTOI[move] for move in sub_moves]
-            yield indices[:-1], indices[-1]
+            indices = [MTOI[m] for m in moves[i : i + context_size]]
+            yield indices[:-1], indices[-1], legal_move_indices(board)
+        board.push(move)
