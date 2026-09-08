@@ -1,9 +1,26 @@
 import math
+import os
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint as activation_checkpoint
+
+from tqdm import tqdm
+
+from batches_helpers import batch_to_device, load_batch, load_batch_count
+from chess_helpers import LEN_POSSIBLE_MOVES
+from constants import (
+    DROPOUT,
+    INPUT_SIZE,
+    LR,
+    MIN_LR_RATIO,
+    MODEL_FILE_PATH,
+    MODELS_FOLDER_PATH,
+    N_EMBED,
+    N_HEADS,
+    N_LOOPS,
+)
 
 
 def _run_block(block, x) -> torch.Tensor:
@@ -197,3 +214,88 @@ class LoopedGPT(nn.Module):
             if callback is not None:
                 callback(idx_next)
         return idx
+
+
+def create_model(device):
+    return LoopedGPT(
+        vocab_size=LEN_POSSIBLE_MOVES,
+        n_token_embd=N_EMBED,
+        n_attn_embd=N_EMBED,
+        n_head=N_HEADS,
+        block_size=INPUT_SIZE,
+        dropout=DROPOUT,
+        loop_times=N_LOOPS,
+    ).to(device=device)
+
+
+def load_model(device):
+    if not os.path.isfile(MODEL_FILE_PATH):
+        print(f"No trained model at {MODEL_FILE_PATH}. Run train.py first.")
+        raise SystemExit(1)
+    model = create_model(device)
+    model.load_state_dict(
+        torch.load(MODEL_FILE_PATH, map_location=device, weights_only=True)
+    )
+    model.eval()
+    return model
+
+
+def adamw_param_groups(module, weight_decay):
+    decay, no_decay = [], []
+    for name, param in module.named_parameters():
+        if not param.requires_grad:
+            continue
+        if param.ndim < 2 or "embedding" in name:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+    return [
+        {"params": decay, "weight_decay": weight_decay},
+        {"params": no_decay, "weight_decay": 0.0},
+    ]
+
+
+def lr_at(step, warmup_steps, total_steps, lr=LR, min_lr_ratio=MIN_LR_RATIO):
+    min_lr = lr * min_lr_ratio
+    if step < warmup_steps:
+        return lr * float(step + 1) / float(warmup_steps)
+    t = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+    t = min(1.0, max(0.0, t))
+    return min_lr + 0.5 * (lr - min_lr) * (1.0 + math.cos(math.pi * t))
+
+
+def set_lr(optimizer, step, warmup_steps, total_steps, lr=LR, min_lr_ratio=MIN_LR_RATIO):
+    current_lr = lr_at(step, warmup_steps, total_steps, lr, min_lr_ratio)
+    for group in optimizer.param_groups:
+        group["lr"] = current_lr
+    return current_lr
+
+
+@torch.no_grad()
+def evaluate(model, split, device):
+    n = load_batch_count(split)
+    if n <= 0:
+        return None
+    was_training = model.training
+    model.eval()
+    total_loss = 0.0
+    total_correct = 0
+    total_examples = 0
+    progress = tqdm(range(n), dynamic_ncols=True, desc=f"Evaluating {split}")
+    for i in progress:
+        xs, ys, illegal_mask = load_batch(split, i)
+        xs, ys, illegal_mask = batch_to_device(xs, ys, illegal_mask, device)
+        logits, split_loss = model(xs, ys, illegal_mask=illegal_mask)
+        total_loss += split_loss.item()
+        preds = logits[:, -1, :].argmax(dim=-1)
+        total_correct += (preds == ys).sum().item()
+        total_examples += ys.size(0)
+        progress.set_postfix(loss=total_loss / (i + 1), acc=total_correct / total_examples)
+    if was_training:
+        model.train()
+    return total_loss / n, total_correct / total_examples
+
+
+def save_checkpoint(model):
+    os.makedirs(MODELS_FOLDER_PATH, exist_ok=True)
+    torch.save(model.state_dict(), MODEL_FILE_PATH)
