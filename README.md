@@ -1,4 +1,5 @@
 # Neuro Gambit 2
+
 A chessbot trained on Lichess data using a custom recurrent transformer model that is based on Andrej Karpathy's nanoGPT.
 
 ![chessbot](screenshot.png)
@@ -56,29 +57,36 @@ cd ../..
 
 Set `DATA_PATH` in `generate_data.py` to the path of the downloaded PGN. I used the data from July 2017 as it is relatively small, but you can also download a larger dataset.
 
-Also, in case you don't have `zstd`, you can install it with 
+Also, in case you don't have `zstd`, you can install it with
+
 ```bash
 sudo apt install zstd
 ```
 
 After that, run
+
 ```bash
 python generate_data.py
 ```
+
 This will preprocess the data and filter out lower elo games.
 
 You can also preview any game from the preprocessed data by running
+
 ```bash
 python preview_data.py 0 # or any index value
 ```
 
 Then you will need to create the batches for training by running
+
 ```bash
 python generate_batches.py
 ```
 
 # Train
+
 After the data is ready, you can train the model by running
+
 ```bash
 python train.py
 ```
@@ -86,6 +94,7 @@ python train.py
 This will train the model for `EPOCHS` epochs (default is 3 which you can find in `constants.py`), and evaluate the validation set after each epoch.
 
 To test the model, run
+
 ```bash
 python test.py
 ```
@@ -93,9 +102,24 @@ python test.py
 This will evaluate the model on the test set and print the accuracy.
 
 # Results
-Training with **3 epochs**, **16 context size**, **8 heads**, **4 loops** was able to achieve a **2.3251 test loss** and an **accuracy of 32.8%**. Which took **1 hour** on my laptop's NVIDIA GeForce RTX 3070 Ti GPU.
+
+Training with for one hour on my laptop's NVIDIA GeForce RTX 3070 Ti GPU was able to achieve a **2.3251 test loss** and an **accuracy of 32.8%**. For more details, see the following table:
+
+| Parameter        |                      Value |
+| ---------------- | -------------------------: |
+| Epochs           |                          3 |
+| Context size     |                         16 |
+| Attention heads  |                          8 |
+| number of blocks |                          2 |
+| Loops per block  |                          4 |
+| Training time    |                     1 hour |
+| GPU              | NVIDIA GeForce RTX 3070 Ti |
+| Model size       |                      15 MB |
+| Test loss        |                 **2.3251** |
+| Accuracy         |                  **32.8%** |
 
 # Motivation and Conclusion
+
 Part of the idea of this project was to see if LLM models can learn how to solve specific problems by modifying the vocabulary of the tokenizer to be specific to the problem: meaning that the problem is describable as a sequence of tokens.
 
 Chess is a good example of that where the entire chess board can be represented as a sequence of tokens and the potential moves that the model can make are represented as UCI move strings.
