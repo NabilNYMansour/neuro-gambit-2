@@ -127,23 +127,43 @@ class LoopedGPT(nn.Module):
             if n_token_embd == n_attn_embd
             else nn.Linear(n_token_embd, n_attn_embd)
         )
-        self.step_embedding = nn.Embedding(loop_times, n_attn_embd)
-        self.block = Block(n_attn_embd, n_head, block_size, dropout)
+        self.n_unroll = 2 * loop_times
+        self.step_embedding = nn.Embedding(self.n_unroll, n_attn_embd)
+        self.block_1 = Block(n_attn_embd, n_head, block_size, dropout)
+        self.block_2 = Block(n_attn_embd, n_head, block_size, dropout)
         self.lm_head = nn.Linear(n_attn_embd, vocab_size)
         self.ln_f = LayerNorm(n_attn_embd)
         self.apply(_init_weights)
-        _scale_residual_projections(self, loop_times)
+        _scale_residual_projections(self, self.n_unroll)
 
-    def forward(self, idx: torch.Tensor, targets=None):
+    def _apply_illegal_mask(self, logits, illegal_mask):
+        # Finite fill: -inf softmax backward NaNs on gfx1200.
+        if illegal_mask.ndim == 1:
+            illegal_mask = illegal_mask.unsqueeze(0)
+        if illegal_mask.ndim == 2:
+            logits = logits.clone()
+            logits[:, -1, :] = logits[:, -1, :].masked_fill(illegal_mask, -1.0e4)
+            return logits
+        return logits.masked_fill(illegal_mask, -1.0e4)
+
+    def forward(self, idx: torch.Tensor, targets=None, illegal_mask=None):
         _, T = idx.shape  # (B, T) token ids
         pos = torch.arange(T, device=idx.device)  # (T,)
         tok = self.token_embedding(idx)  # (B, T, n_token_embd)
         x = tok + self.position_embedding(pos)  # (B, T, n_token_embd)
         x = self.in_proj(x)  # (B, T, n_attn_embd)
-        for i in range(self.loop_times):
-            x = x + self.step_embedding.weight[i]
-            x = _run_block(self.block, x)  # (B, T, n_attn_embd)
+        step = 0
+        for _ in range(self.loop_times):
+            x = x + self.step_embedding.weight[step]
+            x = _run_block(self.block_1, x)  # (B, T, n_attn_embd)
+            step += 1
+        for _ in range(self.loop_times):
+            x = x + self.step_embedding.weight[step]
+            x = _run_block(self.block_2, x)  # (B, T, n_attn_embd)
+            step += 1
         logits = self.lm_head(self.ln_f(x))  # (B, T, vocab_size)
+        if illegal_mask is not None:
+            logits = self._apply_illegal_mask(logits, illegal_mask)
         loss = None
         if targets is not None:
             if targets.ndim == 1:
@@ -157,9 +177,20 @@ class LoopedGPT(nn.Module):
         return logits, loss
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=1.0, callback=None):
+    def generate(
+        self,
+        idx,
+        max_new_tokens,
+        temperature=1.0,
+        callback=None,
+        illegal_mask=None,
+        illegal_mask_fn=None,
+    ):
         for _ in range(max_new_tokens):
-            logits, _ = self(idx[:, -self.block_size :])  # (B, T, vocab_size)
+            mask = illegal_mask_fn(idx) if illegal_mask_fn is not None else illegal_mask
+            logits, _ = self(
+                idx[:, -self.block_size :], illegal_mask=mask
+            )  # (B, T, vocab_size)
             probs = F.softmax(logits[:, -1, :] / temperature, dim=-1)  # (B, vocab_size)
             idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
             idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
