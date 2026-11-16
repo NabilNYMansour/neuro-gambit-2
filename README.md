@@ -1,6 +1,6 @@
 # Neuro Gambit 2
 
-A chessbot trained on Lichess data using a custom recurrent transformer model that is based on Andrej Karpathy's nanoGPT.
+A chessbot trained on Lichess data using a custom looped transformer model that is based on Andrej Karpathy's nanoGPT.
 
 ![chessbot](screenshot.png)
 
@@ -126,7 +126,7 @@ Chess is a good example of that where the entire chess board can be represented 
 
 The model is able to learn how to play, but it does seem to struggle with very irregular moves that it was not trained on. Next steps could be to do some RL training to improve the model's performance on irregular moves, as well as just scaling the model.
 
-An aspect to consider with scaling though, is that I am using recurrent transformers to see how small models can be used, and so there are two scaling axes: the model size (how many blocks) and the loop number (how many times the model is unrolled). Moreoever, using an illegal move mask during training and inference really pushes the model since it makes it consider way less moves at every step: which decreases the negative log likelihood by a good amount (from ln(4545) to ln(~20) for completely random moves).
+An aspect to consider with scaling though, is that I am using looped transformers to see how small models can be used, and so there are two scaling axes: the model size (how many blocks) and the loop number (how many times the model is unrolled). Moreoever, using an illegal move mask during training and inference really pushes the model since it makes it consider way less moves at every step: which decreases the negative log likelihood by a good amount (from ln(4545) to ln(~20) for completely random moves).
 
 Lastly, this project was also done so I can learn and understand how LLM models work and how I can experiment with different model architectures and training techniques. This has been the culmination of all my research during summer 2026.
 
